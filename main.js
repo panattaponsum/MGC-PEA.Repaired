@@ -894,7 +894,7 @@ window.importData = function(event) {
 
             const headers = rawData[0];
             const recordsToSave = {};
-            // 💡 NEW: Object สำหรับเก็บข้อมูลทะเบียนทรัพย์สิน
+            // 💡 1. Object สำหรับเก็บข้อมูลทะเบียนทรัพย์สิน
             const assetsToSave = {}; 
 
             const headerMap = {
@@ -919,7 +919,6 @@ window.importData = function(event) {
 
             const requiredHistoryHeaders = ['ชื่ออุปกรณ์', 'วันที่ชำรุด', 'สถานะ'];
             if (requiredHistoryHeaders.some(h => headerMap[h] === -1)) {
-                // เปลี่ยนข้อความแจ้งเตือนให้เฉพาะเจาะจงขึ้น
                 Swal.fire('ผิดพลาด', 'ไฟล์นำเข้าต้องมีคอลัมน์หลักสำหรับประวัติชำรุด: ชื่ออุปกรณ์, วันที่ชำรุด, สถานะ', 'error');
                 return;
             }
@@ -931,10 +930,9 @@ window.importData = function(event) {
                 if (!deviceName) continue;
 
                 // ====================================================================
-                // 💡 NEW: 1. ประมวลผลข้อมูลทะเบียนทรัพย์สิน (Asset Registration)
+                // 2. ประมวลผลข้อมูลทะเบียนทรัพย์สิน (Asset Registration)
                 // ====================================================================
                 const importedInstallDate = (row[headerMap['วันที่ติดตั้ง']] || '').toString().slice(0, 10);
-                // ใช้ Number.parseInt เพื่อจัดการค่าที่อาจเป็นตัวเลข
                 const importedWarranty = Number.parseInt(row[headerMap['ระยะเวลารับประกัน (ปี)']] || 0);
                 const importedEol = Number.parseInt(row[headerMap['อายุการใช้งานที่คาดการณ์ (ปี)']] || 0);
 
@@ -948,7 +946,7 @@ window.importData = function(event) {
                 }
                 // ====================================================================
 
-                // โค้ดเดิม: 2. ประมวลผลข้อมูลประวัติการชำรุด (Breakdown History)
+                // 3. ประมวลผลข้อมูลประวัติการชำรุด (Breakdown History)
                 const statusValue = (row[headerMap['สถานะ']] || '').toString();
                 const importedBrokenDate = (row[headerMap['วันที่ชำรุด']] || '').toString().slice(0, 10);
                 const importedFixedDate = (row[headerMap['วันที่ซ่อมแซม']] || '').toString().slice(0, 10);
@@ -965,7 +963,7 @@ window.importData = function(event) {
                     counted: !!importedBrokenDate, 
                 };
 
-                // 💡 บังคับสถานะเป็น 'down' หากยังไม่ซ่อม
+                // บังคับสถานะเป็น 'down' หากยังไม่ซ่อม
                 if (record.brokenDate && record.fixedDate === null) {
                     record.status = 'down';
                 }
@@ -977,7 +975,7 @@ window.importData = function(event) {
             
             
             // ====================================================================
-            // 💡 NEW BATCH 1: บันทึกข้อมูลทะเบียนทรัพย์สิน (Asset Registration)
+            // 4. BATCH 1: บันทึกข้อมูลทะเบียนทรัพย์สิน (Asset Registration)
             // ====================================================================
             const assetBatch = db.batch();
             let totalAssetsUpdated = 0;
@@ -995,7 +993,7 @@ window.importData = function(event) {
                 }
             });
             
-            // Commit Asset Batch (ดำเนินการแบบ Asynchronous)
+            // Commit Asset Batch
             if (totalAssetsUpdated > 0) {
                  assetBatch.commit().then(() => {
                      console.log(`Successfully updated asset registration for ${totalAssetsUpdated} devices.`);
@@ -1007,12 +1005,13 @@ window.importData = function(event) {
             // ====================================================================
 
 
-            // โค้ดเดิม: BATCH 2: บันทึกข้อมูลประวัติการชำรุด (Breakdown History)
+            // ====================================================================
+            // 5. BATCH 2: บันทึกข้อมูลประวัติการชำรุด (Breakdown History)
+            // ====================================================================
             const historyBatch = db.batch();
             let totalRecords = 0;
 
             Object.keys(recordsToSave).forEach(deviceName => {
-                // 💡 สมมติว่า getSiteCollection(currentSiteKey) คือ Reference ไปยัง collection devices
                 const deviceRef = getSiteCollection(currentSiteKey).doc(deviceName);
                 const newRecords = recordsToSave[deviceName];
                 totalRecords += newRecords.length;
@@ -1282,4 +1281,5 @@ window.onload = function() {
     
 
 };
+
 
