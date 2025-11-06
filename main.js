@@ -12,6 +12,12 @@ const firebaseConfig = {
 // Initialize Firebase (ใช้ชื่อฟังก์ชัน Global ที่ถูกโหลดมา)
 firebase.initializeApp(firebaseConfig); 
 const db = firebase.firestore();
+db.settings({
+  // บังคับให้ใช้ Long Polling แทน QUIC เพื่อหลีกเลี่ยงปัญหาเครือข่าย/ไฟร์วอลล์
+  experimentalForceLongPolling: true,
+  // ตั้งค่า WebChannel เป็น false เพื่อให้แน่ใจว่าใช้ XHR polling
+  experimentalAutoDetectLongPolling: true 
+});
 const devicesCol = db.collection("devices"); // 💡 Not used globally in this structure, but kept for context
 
 const sites = {
@@ -1259,6 +1265,7 @@ document.addEventListener("DOMContentLoaded", function() {
 window.onload = function() {
     try { imageMapResize(); } catch (e) {}
 };
+
 
 
 
