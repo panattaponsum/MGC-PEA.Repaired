@@ -352,14 +352,14 @@ window.saveData = async function() {
     }
 
     // --- 4. Save Asset Data (การแก้ไขที่สำคัญ) ---
-    const newAssetData = {
+   const newAssetData = {
         assetId: assetId,
         manufacturer: manufacturer,
         model: model,
         installDate: installDate,
         warrantyStartDate: warrantyStartDate,
         warrantyYears: warrantyYears,
-        // ❌ ลบ eolYears: eolYears ออกจาก Object
+        // ❌ ลบ eolYears: eolYears ออก
     };
 
     try {
@@ -379,7 +379,7 @@ window.saveData = async function() {
     }
 
 
-    // --- 5. Save History Record (โค้ดเดิมของคุณ) ---
+    // --- 5. Save History Record (ต้องเป็นโค้ดเดิมของคุณที่ถูกต้อง) ---
     const baseRec = {
         user: document.getElementById('userName').value || "ไม่ระบุ",
         status: statusVal,
@@ -391,7 +391,7 @@ window.saveData = async function() {
     };
 
     if (editIndex >= 0) {
-        // การแก้ไข: นำข้อมูลเดิมมาทับข้อมูลใหม่
+        // ... โค้ดการแก้ไขเดิม ...
         const originalRecord = records[editIndex];
 
         records[editIndex] = {
@@ -399,7 +399,6 @@ window.saveData = async function() {
             ...baseRec,
             ts: originalRecord.ts
         };
-
         // ตรรกะ counted เมื่อแก้ไข
         if (statusVal === 'ok') {
             records[editIndex].counted = originalRecord.counted || false; 
@@ -417,7 +416,15 @@ window.saveData = async function() {
     await saveDeviceRecords(currentSiteKey, currentDevice, records);
     
     // อัปเดต UI
-    window.closeForm(); // 💡 ต้องเรียกปิดฟอร์มก่อนแจ้งเตือน
+    window.closeForm(); 
+    clearForm();
+    await loadHistory();
+    window.updateDeviceSummary();
+    window.updateDeviceStatusOverlays(currentSiteKey);
+    alert("บันทึกเรียบร้อย");
+    return true;
+};
+ window.closeForm(); // 💡 ต้องเรียกปิดฟอร์มก่อนแจ้งเตือน
     clearForm();
     await loadHistory();
     window.updateDeviceSummary();
@@ -1298,6 +1305,7 @@ document.addEventListener("DOMContentLoaded", function() {
 window.onload = function() {
     try { imageMapResize(); } catch (e) {}
 };
+
 
 
 
