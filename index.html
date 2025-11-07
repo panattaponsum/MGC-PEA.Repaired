@@ -137,20 +137,22 @@ h1,h2,h3,th {
       </select>
     </div>
 
-	  <div id="authStatus" class="flex items-center gap-3 ml-auto mr-3">
-        <span id="userNameDisplay" class="text-sm text-gray-300 hidden"></span>
-        <button id="authButton" class="btn btn-brand" onclick="handleAuthAction()">เข้าสู่ระบบด้วย Google</button>
-    </div>
+	 <div id="authStatus" class="flex items-center gap-3 ml-auto mr-3">
+    <span id="userNameDisplay" class="text-sm text-gray-300 hidden"></span>
+    <button id="authButton" class="btn btn-brand" onclick="handleAuthAction()">Login Google</button>
+</div>
 
-    <span class="spacer"></span>
-   
-    <button class="btn btn-rgb" onclick="showSummary()">📊 สรุปผล</button>
-    <button class="btn btn-brand" onclick="exportAllDataExcel()">📤 ส่งออก Excel</button>
-    <label class="btn btn-warning">📥 นำเข้า Excel
-      <input type="file" accept=".xlsx" onchange="importData(event)" class="hidden"/>
-    </label>
-    <button class="btn btn-danger" onclick="clearAllDevices()">🗑️ ล้างข้อมูลทั้งหมด</button>
-  </div>
+<span class="spacer"></span>
+ 
+<button id="summaryButton" class="btn btn-rgb" onclick="showSummary()">📊 Summary</button>
+
+<button id="exportButton" class="btn btn-brand" onclick="exportAllDataExcel()">📤 Export Excel</button>
+
+<label id="importButton" class="btn btn-warning">📥 Import Excel
+    <input type="file" accept=".xlsx" onchange="importData(event)" class="hidden"/>
+</label>
+
+<button id="clearButton" class="btn btn-danger" onclick="clearAllDevices()">🗑️ ClearAllDevices</button>
 
 <div id="map-ko-phaluay" class="map-container" style="position:relative;">
   <img class="device-img" src="phaluay.png" usemap="#netmap" width="1903" height="1041" alt="Topology" />
@@ -420,6 +422,7 @@ h1,h2,h3,th {
 </body>
 
 </html>
+
 
 
 
