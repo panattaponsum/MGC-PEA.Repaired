@@ -53,10 +53,39 @@ let currentSiteKey = "ko-phaluay";
 let currentDevice = null, editIndex = -1, chartInstance = null;
 let currentPage = 1;
 const pageSize = 7; 
+let siteInitialized = false;
 
 
 let isAuthenticated = false;
 let currentUser = null; // Store user object
+
+function initializeSiteIfLoggedIn() {
+    // หยุดทันทีหากมีการเริ่มต้นแล้ว หรือยังไม่ได้ล็อคอิน
+    if (siteInitialized || !isAuthenticated) return;
+    
+    const locationSelect = document.getElementById("location-select");
+    if (!locationSelect) return; 
+
+    // 1. Logic เดิมที่หา Initial Site Key (คัดลอกมาจาก DOMContentLoaded)
+    let initialSiteKey = locationSelect.value;
+    const siteKeys = Object.keys(sites); 
+
+    if (!initialSiteKey || !sites[initialSiteKey]) {
+        if (siteKeys.length > 0) {
+             initialSiteKey = siteKeys[0];
+             locationSelect.value = initialSiteKey; 
+        } else {
+             console.warn("No sites defined in the 'sites' object.");
+             return;
+        }
+    }
+
+    // 2. เรียกโหลดข้อมูลหลัก
+    window.switchSite(initialSiteKey);
+    
+    // 3. ตั้งค่า Flag เพื่อป้องกันการเรียกซ้ำ
+    siteInitialized = true; 
+}
 
 function initializeSiteSelection() {
     const locationSelect = document.getElementById("location-select");
@@ -98,11 +127,7 @@ function initializeSiteSelection() {
 
 function updateUIForAuthState(user) {
     const authButton = document.getElementById('authButton');
-    
-    // 💥 FIX: ตรวจสอบการอ้างอิง ID ให้ถูกต้อง (userNameDisplay) 💥
-    const userNameDisplay = document.getElementById('userNameDisplay'); 
-    
-    // ปุ่มฟังก์ชัน
+    const userNameDisplay = document.getElementById('userNameDisplay');
     const summaryButton = document.getElementById('summaryButton');
     const exportButton = document.getElementById('exportButton');
     const importButton = document.getElementById('importButton');
@@ -113,11 +138,10 @@ function updateUIForAuthState(user) {
         currentUser = user;
         const email = user.email || user.displayName || 'ไม่ระบุอีเมล';
 
-        authButton.textContent = 'ออกจากระบบ';
+        authButton.textContent = 'Logout';
         authButton.classList.remove('btn-brand');
         authButton.classList.add('btn-ghost');
         
-        // 💥 FIX: ใช้ userNameDisplay ที่ถูกต้องและมีการตรวจสอบ 💥
         if (userNameDisplay) {
              userNameDisplay.textContent = `${email}`;
              userNameDisplay.classList.remove('hidden');
@@ -133,16 +157,18 @@ function updateUIForAuthState(user) {
         if (document.getElementById('editorEmailDisplay')) {
             document.getElementById('editorEmailDisplay').value = email;
         }
-
+        
+        // 🎯 FIX A: เรียก Logic การเริ่มต้นไซต์เมื่อล็อคอินสำเร็จแล้ว
+        initializeSiteIfLoggedIn(); 
+        
     } else {
         isAuthenticated = false;
         currentUser = null;
 
-        authButton.textContent = 'เข้าสู่ระบบด้วย Google';
+        authButton.textContent = 'Login Google';
         authButton.classList.add('btn-brand');
         authButton.classList.remove('btn-ghost');
         
-        // 💥 FIX: ใช้ userNameDisplay ที่ถูกต้องและมีการตรวจสอบ 💥
         if (userNameDisplay) {
             userNameDisplay.classList.add('hidden');
         }
@@ -160,8 +186,19 @@ function updateUIForAuthState(user) {
 
         // ปิดฟอร์มบันทึกหากเปิดอยู่เมื่อออกจากระบบ
         window.closeForm(); 
+        
+        // 🎯 FIX B: รีเซ็ต Flag เมื่อผู้ใช้ออกจากระบบ
+        siteInitialized = false;
+        
+        // 🎯 FIX C: บังคับให้หน้ากลับไปที่ Topology เมื่อ Logout
+        document.getElementById('summaryPage')?.classList.add('hidden');
+        document.getElementById('topologyPage')?.classList.remove('hidden');
+        
+        // 💡 เรียก updateDeviceSummary เพื่อเคลียร์ข้อมูลที่อาจค้างอยู่
+        if (typeof window.updateDeviceSummary === 'function') {
+             window.updateDeviceSummary(); 
+        }
     }
-   
 }
 window.handleAuthAction = function() {
     if (!auth.currentUser) {
@@ -201,7 +238,7 @@ auth.onAuthStateChanged(function(user) {
 
     if (user) {
         // ✅ FIX 2: เมื่อล็อคอินสำเร็จ ให้เริ่มต้นโหลดข้อมูลไซต์
-        initializeSiteSelection(); 
+        eSelection(); 
         
         // 💡 OPTIONAL: ถ้ามีหน้าล็อคอินเฉพาะ ให้ซ่อนมันตรงนี้
         // document.getElementById('loginPage')?.classList.add('hidden');
@@ -1487,6 +1524,7 @@ document.addEventListener("DOMContentLoaded", function() {
 window.onload = function() {
     try { imageMapResize(); } catch (e) {}
 };
+
 
 
 
