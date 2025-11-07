@@ -200,13 +200,6 @@ function updateUIForAuthState(user) {
         if (userNameDisplay) {
             userNameDisplay.classList.add('hidden');
         }
-
-        // ซ่อนปุ่มฟังก์ชันทั้งหมดเมื่อยังไม่ล็อคอิน
-        summaryButton.classList.add('hidden');
-        exportButton.classList.add('hidden');
-        importButton.classList.add('hidden');
-        clearButton.classList.add('hidden');
-
         // อัปเดตอีเมลผู้บันทึกในฟอร์ม
         if (document.getElementById('editorEmailDisplay')) {
             document.getElementById('editorEmailDisplay').value = 'กรุณาล็อคอิน';
@@ -1520,6 +1513,7 @@ document.addEventListener("DOMContentLoaded", function() {
 window.onload = function() {
     try { imageMapResize(); } catch (e) {}
 };
+
 
 
 
