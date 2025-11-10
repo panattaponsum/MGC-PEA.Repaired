@@ -1092,35 +1092,46 @@ window.editRecord = async function(ts) {
 };
 
 window.updateDeviceSummary = async function() {
+    // กำหนดให้ 'currentPage' เริ่มต้นที่ 1 เสมอ หากยังไม่ถูกกำหนดไว้
+    if (typeof currentPage === 'undefined') {
+        window.currentPage = 1;
+    }
+    
     const siteData = sites[currentSiteKey];
-    console.log('currentSiteKey:', currentSiteKey, 'siteData:', siteData);
+    const tbodyInitial = document.getElementById('summaryBody');
 
+    // 1. ตรวจสอบ Site Data ก่อน
     if (!siteData) {
         console.warn('❌ siteData ไม่พบสำหรับ currentSiteKey นี้');
-        const tbody = document.getElementById('summaryBody');
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-500">ไม่พบ siteData สำหรับ site นี้</td></tr>';
+        if (tbodyInitial) { // ตรวจสอบก่อนใช้
+             tbodyInitial.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-500">ไม่พบ siteData สำหรับ site นี้</td></tr>';
+        }
         return;
     }
 
-    console.log('siteData.devices:', siteData.devices);
+    // 2. ตรวจสอบ Device List ก่อน
     if (!siteData.devices || siteData.devices.length === 0) {
-        const tbody = document.getElementById('summaryBody');
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-500">ไม่มีอุปกรณ์ใน site นี้</td></tr>';
+        if (tbodyInitial) { // ตรวจสอบก่อนใช้
+            tbodyInitial.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-500">ไม่มีอุปกรณ์ใน site นี้</td></tr>';
+        }
         return;
     }
 
+    // 3. กำหนดตัวแปรสำหรับ Filter
     const search = document.getElementById('searchInput')?.value?.toLowerCase() || '';
     const sortOrder = document.getElementById('sortOrder')?.value || 'desc';
     const filterStatus = document.getElementById('filterStatus')?.value || 'all';
     const from = document.getElementById('fromDate')?.value || '';
     const to = document.getElementById('toDate')?.value || '';
 
-    const docsSnap = await getSiteCollection(currentSiteKey).get({ source: 'server' }); 
-    const dataMap = {}; 
+    // 4. ดึงข้อมูลจาก Firestore
+    const docsSnap = await getSiteCollection(currentSiteKey).get({ source: 'server' });
+    const dataMap = {};
     docsSnap.forEach(d => dataMap[d.id] = d.data());
 
     let summary = [];
 
+    // 5. ประมวลผลและ Filter ข้อมูล
     for (const dev of siteData.devices) {
         const docData = dataMap[dev] || {};
         const records = docData.records || [];
@@ -1160,7 +1171,6 @@ window.updateDeviceSummary = async function() {
         if (filterStatus === 'clean' && downCount > 0) continue;
         if (search && !dev.toLowerCase().includes(search)) continue;
 
-        console.log('✔ เพิ่ม device:', dev, 'status:', currentDeviceStatus, 'downCount:', downCount);
 
         summary.push({
             device: dev,
@@ -1174,14 +1184,14 @@ window.updateDeviceSummary = async function() {
         });
     }
 
-    // Sort
+    // 6. Sort
     summary.sort((a, b) => {
         const countSort = sortOrder === 'desc' ? b.count - a.count : a.count - b.count;
         if (countSort !== 0) return countSort;
         return b.latestBrokenDays - a.latestBrokenDays;
     });
 
-    // Pagination
+    // 7. Pagination Logic
     const pageSize = 10;
     const totalPages = Math.max(1, Math.ceil(summary.length / pageSize));
     if (currentPage > totalPages) currentPage = totalPages;
@@ -1189,32 +1199,36 @@ window.updateDeviceSummary = async function() {
     const endIndex = startIndex + pageSize;
     const pageData = summary.slice(startIndex, endIndex);
 
-    // Render tbody
+    // 8. Render tbody (จุดที่ต้องเพิ่มการป้องกัน Crash)
     const tbody = document.getElementById('summaryBody');
-    tbody.innerHTML = '';
-    if (summary.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-400">ไม่พบข้อมูลอุปกรณ์ตามเงื่อนไขที่เลือก</td></tr>';
+    if (tbody) { // 👈 การตรวจสอบความปลอดภัยที่สำคัญ
+        tbody.innerHTML = '';
+        if (summary.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-400">ไม่พบข้อมูลอุปกรณ์ตามเงื่อนไขที่เลือก</td></tr>';
+        } else {
+            pageData.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-t border-white/10 hover:bg-white/5 cursor-pointer';
+                tr.innerHTML = `
+                    <td class="text-left font-medium">${escapeHtml(s.device)}</td>
+                    <td><span class="${s.count > 0 ? 'tag tag-bad' : 'tag tag-ok'}">${s.count}</span></td>
+                    <td>${s.brokenDate}</td>
+                    <td>${s.fixedDate}</td>
+                    <td><span class="${s.status.includes('ชำรุด') ? 'tag tag-bad' : 'tag tag-ok'}">${s.status}</span></td>
+                    <td class="font-semibold text-center">${s.latestBrokenDuration}</td>
+                    <td class="text-left text-sm text-gray-300 max-w-[200px] whitespace-normal">${escapeHtml(s.latestDescription || '-')}</td>
+                `;
+                tr.addEventListener('click', () => window.openForm(s.device));
+                tbody.appendChild(tr);
+            });
+        }
     } else {
-        pageData.forEach(s => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-t border-white/10 hover:bg-white/5 cursor-pointer'; 
-            tr.innerHTML = `
-                <td class="text-left font-medium">${escapeHtml(s.device)}</td>
-                <td><span class="${s.count > 0 ? 'tag tag-bad' : 'tag tag-ok'}">${s.count}</span></td>
-                <td>${s.brokenDate}</td>
-                <td>${s.fixedDate}</td>
-                <td><span class="${s.status.includes('ชำรุด') ? 'tag tag-bad' : 'tag tag-ok'}">${s.status}</span></td>
-                <td class="font-semibold text-center">${s.latestBrokenDuration}</td>
-                <td class="text-left text-sm text-gray-300 max-w-[200px] whitespace-normal">${escapeHtml(s.latestDescription || '-')}</td>
-            `;
-            tr.addEventListener('click', () => window.openForm(s.device)); 
-            tbody.appendChild(tr);
-        });
+        console.error("Error: Element 'summaryBody' not found. Table rendering failed.");
     }
 
-    // Pagination controls
+    // 9. Pagination controls (โค้ดเดิมที่คุณส่งมา ซึ่งครบถ้วนแล้ว)
     const paginationDiv = document.getElementById('pagination');
-    if (paginationDiv) {
+    if (paginationDiv) { // 👈 การตรวจสอบความปลอดภัย
         paginationDiv.innerHTML = `
             <div class="flex justify-center items-center gap-2 mt-2">
                 <button class="btn" onclick="changePage(-1)" ${currentPage===1?'disabled':''}>⬅️ ก่อนหน้า</button>
@@ -1226,9 +1240,9 @@ window.updateDeviceSummary = async function() {
         console.error("Error: Element 'pagination' not found.");
     }
 
+    // 10. Update Chart
     updateChart(summary);
 };
-
 
 
 window.updateAllAffectedDevicesSummary = async function(deviceNames) {
@@ -1516,5 +1530,6 @@ document.addEventListener("DOMContentLoaded", function() {
 window.onload = function() {
     try { imageMapResize(); } catch (e) {}
 };
+
 
 
