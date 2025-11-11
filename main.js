@@ -86,6 +86,7 @@ let siteInitialized = false;
 
 let isAuthenticated = false;
 let currentUser = null; // Store user object
+let unsubscribe = null;
 
 function initializeSiteIfLoggedIn() {
     // หยุดทันทีหากมีการเริ่มต้นแล้ว หรือยังไม่ได้ล็อคอิน
@@ -1581,6 +1582,7 @@ document.addEventListener("DOMContentLoaded", function() {
 window.onload = function() {
     try { imageMapResize(); } catch (e) {}
 };
+
 
 
 
