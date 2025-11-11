@@ -38,7 +38,7 @@ auth.getRedirectResult()
     });
 auth.onAuthStateChanged(function(user) {
  
-    (user); 
+    updateUIForAuthState(user); // ⬅️ แก้ไขบรรทัดนี้ครับ
 
     if (user) {
     } else {       
@@ -1551,6 +1551,7 @@ document.addEventListener("DOMContentLoaded", function() {
 window.onload = function() {
     try { imageMapResize(); } catch (e) {}
 };
+
 
 
 
