@@ -1158,100 +1158,147 @@ window.importData = function(event) {
             // Assume XLSX library is loaded
             const data = new Uint8Array(e.target.result);
             const wb = XLSX.read(data, { type: 'array' });
-            const wsname = wb.SheetNames[0];
-            
-            const ws = wb.Sheets[wsname];
-            const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
-            if (rawData.length < 2) {
-                // 💥 MODIFIED: เปิดใช้งาน SweetAlert2 💥
-                Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลในไฟล์ Excel', 'error');
+
+            // 💥 NEW: กำหนดชื่อชีตที่ต้องการอ่าน 💥
+            const assetSheetName = "ข้อมูลทรัพย์สิน";
+            const recordSheetName = "ประวัติการชำรุด";
+
+            const wsAssets = wb.Sheets[assetSheetName];
+            const wsRecords = wb.Sheets[recordSheetName];
+
+            // 💥 ตรวจสอบว่ามีชีตใดชีตหนึ่งหรือไม่ 💥
+            if (!wsAssets && !wsRecords) {
+                Swal.fire('ผิดพลาด', 'ไม่พบชีต "ข้อมูลทรัพย์สิน" หรือ "ประวัติการชำรุด" ในไฟล์ Excel', 'error');
+                event.target.value = null;
                 return;
             }
 
-            const headers = rawData[0];
-            const recordsToSave = {};
-
-            const headerMap = {
-                'ชื่ออุปกรณ์': -1, 
-                'วันที่ชำรุด': -1, 
-                'วันที่ซ่อมแซม': -1, 
-                'สถานะ': -1, 
-                'คำอธิบาย': -1, 
-                'ผู้บันทึก': -1
-            };
-            
-            headers.forEach((h, i) => {
-                const trimmedHeader = h.trim();
-                if (headerMap.hasOwnProperty(trimmedHeader)) {
-                    headerMap[trimmedHeader] = i;
-                }
-            });
-
-            const requiredHeaders = ['ชื่ออุปกรณ์', 'วันที่ชำรุด', 'สถานะ'];
-            if (requiredHeaders.some(h => headerMap[h] === -1)) {
-                // 💥 MODIFIED: เปิดใช้งาน SweetAlert2 💥
-                Swal.fire('ผิดพลาด', 'ไฟล์นำเข้าต้องมีคอลัมน์: ชื่ออุปกรณ์, วันที่ชำรุด, สถานะ', 'error');
-                return;
-            }
-
-           for (let i = 1; i < rawData.length; i++) {
-                const row = rawData[i];
-                
-                const deviceName = row[headerMap['ชื่ออุปกรณ์']];
-                if (!deviceName) continue;
-
-               const statusValue = (row[headerMap['สถานะ']] || '').toString();
-                const importedBrokenDate = (row[headerMap['วันที่ชำรุด']] || '').toString().slice(0, 10);
-                const importedFixedDate = (row[headerMap['วันที่ซ่อมแซม']] || '').toString().slice(0, 10);
-                
-                // ✅ FIX 1: ตรวจสอบและทำให้เป็น null
-                // ถ้า importedFixedDate ไม่ว่าง ให้ใช้ค่า ถ้าว่าง ให้เป็น null
-                const fixedDateValue = importedFixedDate.length > 0 ? importedFixedDate : null;
-
-                const record = {
-                    ts: Date.now() + i, 
-                    brokenDate: importedBrokenDate,
-                    fixedDate: fixedDateValue, // 👈 ใช้ fixedDateValue
-                    status: statusValue.includes('ชำรุด') ? 'down' : 'ok',
-                    description: (row[headerMap['คำอธิบาย']] || '').toString() || 'นำเข้าจาก Excel',
-                    user: (row[headerMap['ผู้บันทึก']] || '').toString() || (currentUser.displayName || currentUser.email),
-                    counted: !!importedBrokenDate, 
-                };
-
-                // 💡 บังคับสถานะเป็น 'down' หากยังไม่ซ่อม (FixedDate เป็น null)
-                if (record.brokenDate && record.fixedDate === null) {
-                    record.status = 'down';
-                }
-
-                if (!recordsToSave[deviceName])
-	             {recordsToSave[deviceName] = [];}
-                recordsToSave[deviceName].push(record);
-            }
-            
             const batch = db.batch();
+            let totalAssets = 0;
             let totalRecords = 0;
+            const devicesToUpdateSummary = {}; // 💥 ใช้สำหรับ updateAllAffectedDevicesSummary
 
+            // --- 1. 💥 ประมวลผลชีต "ข้อมูลทรัพย์สิน" 💥 ---
+            if (wsAssets) {
+                const assetRawData = XLSX.utils.sheet_to_json(wsAssets, { header: 1 });
+                if (assetRawData.length >= 2) { // ตรวจสอบว่ามีข้อมูล (อย่างน้อย 1 แถว + header)
+                    const headers = assetRawData[0];
+                    const headerMap = {
+                        'ชื่ออุปกรณ์': headers.indexOf('ชื่ออุปกรณ์'),
+                        'Serial Number': headers.indexOf('Serial Number'),
+                        'Model': headers.indexOf('Model'),
+                        'Manufacturer': headers.indexOf('Manufacturer'),
+                        'วันที่เริ่มประกัน': headers.indexOf('วันที่เริ่มประกัน'),
+                        'วันที่หมดประกัน': headers.indexOf('วันที่หมดประกัน'),
+                    };
+
+                    if (headerMap['ชื่ออุปกรณ์'] === -1) {
+                        Swal.fire('ผิดพลาด (ทรัพย์สิน)', 'ชีต "ข้อมูลทรัพย์สิน" ต้องมีคอลัมน์ "ชื่ออุปกรณ์"', 'error');
+                        event.target.value = null;
+                        return; // หยุดการนำเข้า
+                    }
+
+                    for (let i = 1; i < assetRawData.length; i++) {
+                        const row = assetRawData[i];
+                        const deviceName = row[headerMap['ชื่ออุปกรณ์']];
+                        if (!deviceName) continue;
+
+                        const assetInfo = {
+                            serial: row[headerMap['Serial Number']] || '',
+                            model: row[headerMap['Model']] || '',
+                            manufacturer: row[headerMap['Manufacturer']] || '',
+                            // 💡 ต้องแปลงวันที่จาก Excel (ถ้ามี)
+                            warrantyStart: (row[headerMap['วันที่เริ่มประกัน']] || '').toString().slice(0, 10) || null,
+                            warrantyEnd: (row[headerMap['วันที่หมดประกัน']] || '').toString().slice(0, 10) || null,
+                        };
+
+                        const docRef = getSiteCollection(currentSiteKey).doc(deviceName);
+                        batch.set(docRef, { assetInfo: assetInfo }, { merge: true }); // 💥 บันทึก assetInfo
+                        totalAssets++;
+                    }
+                }
+            }
+
+            // --- 2. 💥 ประมวลผลชีต "ประวัติการชำรุด" 💥 ---
+            const recordsToSave = {}; // ใช้สำหรับรวบรวม records
+            
+            if (wsRecords) {
+                const recordRawData = XLSX.utils.sheet_to_json(wsRecords, { header: 1 });
+                if (recordRawData.length >= 2) { // ตรวจสอบว่ามีข้อมูล
+                    const headers = recordRawData[0];
+                    const headerMap = {
+                        'ชื่ออุปกรณ์': headers.indexOf('ชื่ออุปกรณ์'),
+                        'วันที่ชำรุด': headers.indexOf('วันที่ชำรุด'),
+                        'วันที่ซ่อมแซม': headers.indexOf('วันที่ซ่อมแซม'),
+                        'สถานะ': headers.indexOf('สถานะ'),
+                        'คำอธิบาย': headers.indexOf('คำอธิบาย'),
+                        'ผู้บันทึก': headers.indexOf('ผู้บันทึก')
+                    };
+                    
+                    const requiredHeaders = ['ชื่ออุปกรณ์', 'วันที่ชำรุด', 'สถานะ'];
+                    if (requiredHeaders.some(h => headerMap[h] === -1)) {
+                        Swal.fire('ผิดพลาด (ประวัติ)', 'ชีต "ประวัติการชำรุด" ต้องมีคอลัมน์: ชื่ออุปกรณ์, วันที่ชำรุด, สถานะ', 'error');
+                        event.target.value = null;
+                        return; // หยุดการนำเข้า
+                    }
+
+                    for (let i = 1; i < recordRawData.length; i++) {
+                        const row = recordRawData[i];
+                        const deviceName = row[headerMap['ชื่ออุปกรณ์']];
+                        if (!deviceName) continue;
+                        
+                        devicesToUpdateSummary[deviceName] = true; // 💥 เพิ่มอุปกรณ์นี้ในรายการที่ต้องอัปเดตสรุป
+
+                        const statusValue = (row[headerMap['สถานะ']] || '').toString();
+                        const importedBrokenDate = (row[headerMap['วันที่ชำรุด']] || '').toString().slice(0, 10);
+                        const importedFixedDate = (row[headerMap['วันที่ซ่อมแซม']] || '').toString().slice(0, 10);
+                        const fixedDateValue = importedFixedDate.length > 0 ? importedFixedDate : null;
+
+                        const record = {
+                            ts: Date.now() + i, 
+                            brokenDate: importedBrokenDate,
+                            fixedDate: fixedDateValue,
+                            status: statusValue.includes('ชำรุด') ? 'down' : 'ok',
+                            description: (row[headerMap['คำอธิบาย']] || '').toString() || 'นำเข้าจาก Excel',
+                            user: (row[headerMap['ผู้บันทึก']] || '').toString() || (currentUser.displayName || currentUser.email), 
+                            counted: !!importedBrokenDate, 
+                        };
+                        
+                        if (record.brokenDate && record.fixedDate === null) {
+                            record.status = 'down';
+                        }
+                        if (!recordsToSave[deviceName]) { recordsToSave[deviceName] = []; }
+                        recordsToSave[deviceName].push(record);
+                        totalRecords++;
+                    }
+                }
+            }
+
+            // --- 3. 💥 เพิ่ม Records (arrayUnion) ลงใน Batch 💥 ---
             Object.keys(recordsToSave).forEach(deviceName => {
                 const deviceRef = getSiteCollection(currentSiteKey).doc(deviceName);
                 const newRecords = recordsToSave[deviceName];
-                totalRecords += newRecords.length;
-
-                // ใช้ arrayUnion เพื่อเพิ่มรายการบันทึกใหม่เข้าไปใน array เดิม
                 batch.set(
                     deviceRef,
-                    {
-                        records: firebase.firestore.FieldValue.arrayUnion(...newRecords)
-                    },
-                    { merge: true }
+                    { records: firebase.firestore.FieldValue.arrayUnion(...newRecords) },
+                    { merge: true } // 💥 merge: true สำคัญมาก!
                 );
             });
 
-         if (totalRecords > 0) {
+            // --- 4. 💥 Commit Batch 💥 ---
+            if (totalAssets > 0 || totalRecords > 0) {
                 batch.commit().then(() => {
-                    window.updateAllAffectedDevicesSummary(Object.keys(recordsToSave)); 
+                    // 💥 อัปเดตสรุปของอุปกรณ์ที่ได้รับผลกระทบ (จากชีตประวัติ)
+                    if (totalRecords > 0) {
+                        window.updateAllAffectedDevicesSummary(Object.keys(devicesToUpdateSummary)); 
+                    }
+                    
+                    // 💥 รีเฟรชตารางสรุปทั้งหมด (เพื่อแสดงข้อมูลประกันใหม่จากชีตทรัพย์สิน)
+                    window.updateDeviceSummary(); 
+
                     Swal.fire({
                         title: 'นำเข้าสำเร็จ!',
-                        text: `นำเข้ารายการบันทึกทั้งหมด ${totalRecords} รายการ เสร็จสมบูรณ์`,
+                        text: `นำเข้าข้อมูลทรัพย์สิน ${totalAssets} รายการ และข้อมูลประวัติ ${totalRecords} รายการ`,
                         icon: 'success',
                         confirmButtonText: 'ตกลง'
                     });
@@ -1260,7 +1307,7 @@ window.importData = function(event) {
                     Swal.fire('ผิดพลาด', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + error.message, 'error');
                 });
             } else {
-                Swal.fire('ผิดพลาด', 'ไม่พบรายการบันทึกที่ถูกต้องสำหรับการนำเข้า', 'error');
+                Swal.fire('ผิดพลาด', 'ไม่พบรายการบันทึกที่ถูกต้องในชีตใดๆ', 'error');
             }
         } catch (error) {
             console.error("Import Error: ", error);
@@ -1545,3 +1592,4 @@ window.onload = function() {
     try { imageMapResize(); } catch (e) {}
     
 };
+
