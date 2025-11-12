@@ -52,7 +52,7 @@ h1,h2,h3,th {
 .table td,.table th{padding:10px 12px;text-align:center}
 #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000}
 #formModal input,#formModal select,#formModal textarea {background: #fff;color: #000;border: 1px solid #ccc;border-radius: 6px;padding: 8px 10px;font-size: 14px;outline: none;}
-#formModal{overflow-y: auto;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1001;width:min(560px,92vw);background:linear-gradient(180deg, rgba(17,24,39,.95), rgba(3,6,14,.95));border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:18px;max-height:80vh;display:flex;flex-direction:column;}
+#formModal{overflow-y: auto;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1001;width:min(560px,92vw);background:linear-gradient(180deg, rgba(17,24,39,.95), rgba(3,6,14,.95));border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:18px;max-height:80vh;display:none;flex-direction:column;}
 .entry{border:1px dashed rgba(255,255,255,.1);border-radius:12px;padding:10px;margin:8px 0;background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01))}
 .muted{color:var(--text);font-size:10px}
 .device-img{width:100%;height:auto;border-radius:14px;border:1px solid rgba(255,255,255,.06)}
@@ -111,6 +111,24 @@ h1,h2,h3,th {
     }
 }
 
+/* 💥 NEW CSS for Asset Modal 💥 */
+#assetModal{
+    overflow-y: auto;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+    z-index:1002; /* 💡 อยู่เหนือ formModal (1001) */
+    width:min(560px,92vw);background:linear-gradient(180deg, rgba(17,24,39,.95), rgba(3,6,14,.95));
+    border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:18px;max-height:80vh;
+    display:none;flex-direction:column;
+}
+#assetModal input, #assetModal select, #assetModal textarea {
+    background: #fff;color: #000;border: 1px solid #ccc;
+    border-radius: 6px;padding: 8px 10px;font-size: 14px;outline: none;
+}
+
+/* 💥 NEW CSS for Warranty Status Tags 💥 */
+.tag-warranty-ok { background:rgba(52,211,153,.12); border-color:rgba(52,211,153,.4); color:#84f3cc; }
+.tag-warranty-warn { background:rgba(251,191,36,.12); border-color:rgba(251,191,36,.4); color:#ffd98a; }
+.tag-warranty-bad { background:rgba(248,113,113,.12); border-color:rgba(248,113,113,.4); color:#ffc1c1; }
+
 </style>
 </head>
 <body class="bg-gray-900">
@@ -137,23 +155,23 @@ h1,h2,h3,th {
       </select>
     </div>
 
-	 <div id="authStatus" class="flex items-center gap-3 ml-auto mr-3">
-    <span id="userNameDisplay" class="text-sm text-gray-300 hidden"></span>
-    <button id="authButton" class="btn btn-brand" onclick="handleAuthAction()">Login Google</button>
-</div>
+<div id="authContainer" class="ml-4">
+        <button id="loginButton" class="btn btn-ghost border-yellow-500/50 text-yellow-400">🔒 ลงชื่อเข้าใช้ด้วย Google</button>
+        <div id="userInfo" class="hidden items-center">
+            <span id="userNameDisplay" class="text-sm text-gray-200 font-medium"></span>
+            <button id="logoutButton" class="btn btn-ghost ml-2 text-gray-400 text-xs">🚪 ออกจากระบบ</button>
+        </div>
+    </div>
 
-<span class="spacer"></span>
- 
-<button id="summaryButton" class="btn btn-rgb" onclick="showSummary()">📊 Summary</button>
-
-<button id="exportButton" class="btn btn-brand" onclick="exportAllDataExcel()">📤 Export Excel</button>
-
-<label id="importButton" class="btn btn-warning">📥 Import Excel
-    <input type="file" accept=".xlsx" onchange="importData(event)" class="hidden"/>
-</label>
-
-<button id="clearButton" class="btn btn-danger" onclick="clearAllDevices()">🗑️ ClearAllDevices</button>
-
+    <span class="spacer"></span>
+   <button class="btn btn-rgb" onclick="showSummary()">📊 สรุปผล</button>
+    <button class="btn btn-brand" onclick="exportAllDataExcel()">📤 ส่งออก Excel</button>
+    <label class="btn btn-warning" id="importButtonLabel">📥 นำเข้า Excel
+      <input type="file" accept=".xlsx" onchange="importData(event)" class="hidden"/>
+    </label>
+    <button class="btn btn-danger" onclick="clearAllDevices()" id="clearAllButton">🗑️ ล้างข้อมูลทั้งหมด</button>
+  </div>
+    
 <div id="map-ko-phaluay" class="map-container" style="position:relative;">
   <img class="device-img" src="phaluay.png" usemap="#netmap" width="1903" height="1041" alt="Topology" />
  <map name="netmap">
@@ -204,7 +222,7 @@ h1,h2,h3,th {
       <area alt="PCS-9893(2nd)" coords="207,432,344,460" shape="rect" href="" onclick="openForm('PCS-9893(2nd)'); return false;">
       <area alt="HMI Display 1" coords="689,283,736,338" shape="rect" href="" onclick="openForm('HMI Display 1'); return false;">
       <area alt="HMI Display 2" coords="574,283,621,336" shape="rect" href="" onclick="openForm('HMI Display 2'); return false;">
-  <area alt="HMI  1" coords="785,283,829,336" shape="rect" href="" onclick="openForm('HMI  1'); return false;"> 
+  <area alt="HMI Main 1" coords="785,283,829,336" shape="rect" href="" onclick="openForm('HMI Main 1'); return false;"> 
  <area alt="Cyber Security Manager" coords="967,283,1007,336" shape="rect" href="" onclick="openForm('Cyber Security Manager'); return false;">
       <area alt="Scada 1" coords="1095,283,1138,336" shape="rect" href="" onclick="openForm('Scada 1'); return false;">
       <area alt="Scada 2" coords="1202,280,1249,338" shape="rect" href="" onclick="openForm('Scada 2'); return false;">
@@ -221,7 +239,7 @@ h1,h2,h3,th {
       <area alt="PCS-9893(1st)" coords="1465,368,1570,392" shape="rect" href="" onclick="openForm('PCS-9893(1st)'); return false;">
       <area alt="PCS-9799(1st)" coords="1391,468,1497,496" shape="rect" href="" onclick="openForm('PCS-9799(1st)'); return false;">
  <area alt="PCS-9799(2nd)" coords="1543,474,1645,498" shape="rect" href="" onclick="openForm('PCS-9799(2nd)'); return false;">
-	<area alt="MGC 1" coords="591,572,657,602" shape="rect" href="" onclick="openForm('MGC 1'); return false;">
+	<area alt="MGC 1" coords="659,569,593,599" shape="rect" href="" onclick="openForm('MGC 1'); return false;">
       <area alt="MGC 2" coords="454,573,521,600" shape="rect" href="" onclick="openForm('MGC 2'); return false;">
 <area alt="ATS" coords="921,561,972,598" shape="rect" href="" onclick="openForm('ATS'); return false;">
 	<area alt="PCS-9794(1st)" coords="1013,569,1074,603" shape="rect" href="" onclick="openForm('PCS-9794(1st)'); return false;">
@@ -235,7 +253,7 @@ h1,h2,h3,th {
 <area alt="PCS 4" coords="1147,740,1206,767" shape="rect" href="" onclick="openForm('PCS 4'); return false;">
 	<area alt="PCS 5" coords="1279,740,1342,774" shape="rect" href="" onclick="openForm('PCS 5'); return false;">
       <area alt="PCS 6" coords="1396,747,1455,776" shape="rect" href="" onclick="openForm('PCS 6'); return false;">
-      <area alt="ETH Switch 3" coords="315,785,491,809" shape="rect" href="" onclick="openForm('ETH Switch 3'); return false;">
+      <area alt="ETH Switch 3" coords="484,810,315,784" shape="rect" href="" onclick="openForm('ETH Switch 3'); return false;">
 <area alt="BMS 1" coords="748,840,828,864" shape="rect" href="" onclick="openForm('BMS 1'); return false;">
 	<area alt="BMS 2" coords="860,844,950,867" shape="rect" href="" onclick="openForm('BMS 2'); return false;">
       <area alt="BMS 3" coords="1003,840,1086,866" shape="rect" href="" onclick="openForm('BMS 3'); return false;">
@@ -259,30 +277,12 @@ h1,h2,h3,th {
 	<area alt="ETH Switch 4" coords="1048,708,1222,738" shape="rect" href="" onclick="openForm('ETH Switch 4'); return false;">
 	<area alt="ETH Switch 6" coords="464,374,510,451" shape="rect" href="" onclick="openForm('ETH Switch 6'); return false;">
 	<area alt="ETH Switch 7" coords="657,371,703,452" shape="rect" href="" onclick="openForm('ETH Switch 7'); return false;">
-	<area alt="RTU SVG" coords="435,479,537,537" shape="rect" href="" onclick="openForm('RTU SVG'); return false;">
-<area alt="RTU Substation" coords="434,583,537,642" shape="rect" href="" onclick="openForm('RTU Substation'); return false;">
-<area alt="eMC-G-Controller" coords="434,682,539,742" shape="rect" href="" onclick="openForm('eMC-G-Controller'); return false;">
-<area alt="eMC-N-Controller INC1" coords="221,396,322,454" shape="rect" href="" onclick="openForm('eMC-N-Controller INC1'); return false;">
-<area alt="eMC-N-Controller BAAN3" coords="216,518,317,576" shape="rect" href="" onclick="openForm('eMC-N-Controller BAAN3'); return false;">
-<area alt="eMC-N-Controller BAAN4" coords="212,657,314,716" shape="rect" href="" onclick="openForm('eMC-N-Controller BAAN4'); return false;">
-<area alt="Synnchrotact INC1" coords="109,395,182,452" shape="rect" href="" onclick="openForm('Synnchrotact INC1'); return false;">
-<area alt="Synnchrotact OUT5" coords="106,515,180,576" shape="rect" href="" onclick="openForm('Synnchrotact OUT5'); return false;">
-<area alt="Synnchrotact OUT1" coords="104,655,180,715" shape="rect" href="" onclick="openForm('Synnchrotact OUT1'); return false;">
-<area alt="ADMS-1" coords="784,254,930,291" shape="rect" href="" onclick="openForm('ADMS-1'); return false;">
-<area alt="ADMS-2" coords="943,254,1089,293" shape="rect" href="" onclick="openForm('ADMS-2'); return false;">
-<area alt="RTU Gateway 1" coords="1251,329,1435,390" shape="rect" href="" onclick="openForm('RTU Gateway 1'); return false;">
-<area alt="RTU Gateway 2" coords="1444,329,1627,388" shape="rect" href="" onclick="openForm('RTU Gateway 2'); return false;">
-<area alt="Firewall 1" coords="1312,236,1373,291" shape="rect" href="" onclick="openForm('Firewall 1'); return false;">
-<area alt="Firewall 2" coords="1437,236,1498,291" shape="rect" href="" onclick="openForm('Firewall 2'); return false;">
-<area alt="Firewall 3" coords="1537,237,1601,291" shape="rect" href="" onclick="openForm('Firewall 3'); return false;">
-<area alt="Security HMI" coords="1642,207,1831,388" shape="rect" href="" onclick="openForm('Security HMI'); return false;">
-<area alt="GPS" coords="1148,245,1202,314" shape="rect" href="" onclick="openForm('GPS'); return false;">
     </map>
     <div id="overlay-container-betong" style="position:absolute; inset:0; z-index:10; pointer-events: none;"></div>
   </div>
 </div>
 
-<div id="summaryPage" class="content-page hidden">
+<div id="summaryPage" class="hidden">
   <button class="btn btn-warning mb-1" onclick="showTopology()">⬅️ กลับหน้าหลัก</button>
 
   <div class="card toolbar grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3 items-center mt-4">
@@ -325,6 +325,7 @@ h1,h2,h3,th {
           <th>วันที่ซ่อมแซม</th>
           <th>สถานะล่าสุด</th>
 	<th>⚠️ ระยะเวลาชำรุด</th>
+	<th><span class="text-yellow-400">🛡️</span> สถานะประกัน</th>
           <th>รายละเอียดล่าสุด</th>
         </tr>
       </thead>
@@ -338,104 +339,112 @@ h1,h2,h3,th {
     <canvas id="chart" height="100"></canvas>
   </div>
 </div>
-</main>
-	
-<div id="overlay" onclick="window.closeForm()"></div>
+
+
+<div id="overlay" onclick="closeForm()"></div>
 <div id="formModal">
-  <button class="btn btn-ghost absolute top-3 right-3 text-lg" onclick="window.closeForm()">
-    &times; ปิด
-  </button>
-  <h2 id="formTitle" class="text-xl font-bold mb-3">บันทึกข้อมูล</h2>
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-    <div>
-      <label>ผู้บันทึก (ล็อคอิน)</label>
-      <input type="text" id="editorEmailDisplay" class="w-full" disabled value="กรุณาล็อคอิน"/>
+    <div class="row mb-2">
+    <h3 id="formTitle" class="m-0">บันทึกข้อมูล</h3>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost" onclick="closeForm()">✖ ปิด</button>
     </div>
-    <div>
-      <label>สถานะ</label>
-      <select id="status" class="w-full">
-        <option value="ok">✅ ใช้งานได้</option>
-        <option value="down">❎ ชำรุด</option>
-      </select>
+
+    <div class="mb-3 p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
+        <div class="flex justify-between items-center">
+            <div>
+                <div id="warrantyStatusDisplay" class="text-sm font-bold">-</div>
+                <div id="assetInfoDisplay" class="text-xs text-gray-400 mt-1">-</div>
+            </div>
+            <button class="btn btn-ghost text-xs" onclick="openAssetModal()">📋 ดู/แก้ไขข้อมูลทรัพย์สิน</button>
+        </div>
     </div>
-    <div>
-      <label>วันที่ชำรุด</label>
-      <input type="date" id="brokenDate" class="w-full"/>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label>ชื่อผู้บันทึก</label>
+        <input type="text" id="userName" class="w-full" readOnly/>
+      </div>
+      <div>
+        <label>สถานะ</label>
+        <select id="status" class="w-full">
+          <option value="ok">✅ ใช้งานได้</option>
+          <option value="down">❎ ชำรุด</option>
+        </select>
+      </div>
+      <div>
+        <label>วันที่ชำรุด</label>
+        <input type="date" id="brokenDate" class="w-full"/>
+      </div>
+      <div>
+        <label>วันที่ซ่อมแซม</label>
+        <input type="date" id="fixedDate" class="w-full"/>
+      </div>
+      <div class="sm:col-span-2">
+        <label>รายละเอียด</label>
+        <textarea id="description" rows="3" class="w-full"></textarea>
+      </div>
     </div>
-    <div>
-      <label>วันที่ซ่อมแซม</label>
-      <input type="date" id="fixedDate" class="w-full"/>
-    </div>
-    <div class="sm:col-span-2">
-      <label>รายละเอียด</label>
-      <textarea id="description" rows="3" class="w-full"></textarea>
-    </div>
-  </div>
-  <hr class="border-white/8 mt-3 mb-2">
-  <h3 class="font-semibold mb-2">ทะเบียนทรัพย์สิน (Asset Registration)</h3>
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-    <div>
-      <label>Asset ID</label>
-      <input type="text" id="assetId" class="w-full"/>
-    </div>
-    <div>
-      <label>ผู้ผลิต (Manufacturer)</label>
-      <input type="text" id="manufacturer" class="w-full"/>
-    </div>
-    <div>
-      <label>รุ่น (Model)</label>
-      <input type="text" id="model" class="w-full"/>
-    </div>
-    <div>
-      <label>วันที่ติดตั้ง</label>
-      <input type="date" id="installDate" class="w-full"/>
-    </div>
-    <div>
-      <label>วันที่เริ่มรับประกัน</label>
-      <input type="date" id="warrantyStartDate" class="w-full"/>
-    </div>
-    <div>
-      <label>จำนวนปีรับประกัน</label>
-      <input type="number" id="warrantyYears" class="w-full" min="0" value="0"/>
-    </div>
-  </div>
-  <div class="row mt-3">
-    <button class="btn btn-brand" onclick="saveData()">💾 บันทึก</button>
-    <button class="btn btn-warning" onclick="clearCurrentDevice()">🗑️ ล้างข้อมูลอุปกรณ์นี้</button>
+    <div class="row mt-3">
+    <button class="btn btn-brand" onclick="saveData()" id="saveDataButton">💾 บันทึก</button>
+    <button class="btn btn-warning" onclick="clearCurrentDevice()" id="clearDeviceButton">🗑️ ล้างข้อมูลอุปกรณ์นี้</button>
     <span class="spacer"></span>
     <div id="editHint" class="muted hidden">กำลังแก้ไขรายการเดิม…</div>
-  </div>
-  <hr class="border-white/8 mt-3 mb-2">
-  <h3 class="mt-2 mb-1">📜 ประวัติ</h3>
-  <div id="historySection"></div>
+    </div>
+    <hr class="border-white/8 mt-3 mb-2">
+    <h3 class="mt-2 mb-1">📜 ประวัติ</h3>
+    <div id="historySection"></div>
 </div>
 
+<div id="assetModal" >
+    <div class="row mb-3">
+        <h3 id="assetFormTitle" class="m-0 text-lg">📋 ข้อมูลทะเบียนทรัพย์สิน</h3>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" onclick="closeAssetModal()">✖ ปิด</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label>Serial Number (S/N)</label>
+            <input type="text" id="assetSerial" class="w-full"/>
+        </div>
+        <div>
+            <label>รุ่น (Model)</label>
+            <input type="text" id="assetModel" class="w-full"/>
+        </div>
+        <div class="sm:col-span-2">
+            <label>ผู้ผลิต (Manufacturer)</label>
+            <input type="text" id="assetManufacturer" class="w-full"/>
+        </div>
+        <hr class="sm:col-span-2 border-white/10 my-1">
+        <div>
+            <label>วันที่เริ่มรับประกัน</label>
+            <input type="date" id="assetWarrantyStart" class="w-full"/>
+        </div>
+        <div>
+            <label>จำนวนปีรับประกัน</label>
+            <input type="number" id="assetWarrantyYears" class="w-full" min="0" step="1"/>
+        </div>
+        <div>
+            <label>วันที่หมดรับประกัน</label>
+            <input type="date" id="assetWarrantyEnd" class="w-full"/>
+        </div>
+         <div>
+            <label>สถานะประกัน </label>
+            <input type="text" id="assetWarrantyStatus" class="w-full bg-gray-200! text-gray-700!" readOnly/>
+        </div>
+    </div>
+    <div class="row mt-4">
+        <button class="btn btn-brand" onclick="saveAssetData()" id="saveAssetButton">💾 บันทึกข้อมูลทรัพย์สิน</button>
+    </div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://unpkg.com/image-map-resizer@1.0.10/js/imageMapResizer.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
 <script src="main.js"></script>
 </body>
-
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
