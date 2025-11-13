@@ -517,8 +517,7 @@ function updateAssetDisplays(assetInfo) {
     }
 }
 
-// 💥💥💥 คัดลอกไปทับฟังก์ชัน loadHistory เดิม 💥💥💥
-
+// 💥 (โค้ดนี้ถูกต้องแล้วสำหรับ Bug 2) 💥
 async function loadHistory() {
     const container = document.getElementById('historySection');
     container.innerHTML = '';
@@ -558,7 +557,6 @@ async function loadHistory() {
     let isCurrentBrokenFound = false; 
 
     records.forEach((r, index) => {
-        // ... (ส่วนการคำนวณ duration เหมือนเดิม) ...
         let duration = '-';
         if (r.brokenDate) {
             
@@ -978,56 +976,8 @@ window.updateDeviceSummary = async function() {
     updateChart(summary);
 };
 
-window.updateAllAffectedDevicesSummary = async function(deviceNames) {
-    const batch = db.batch();
-    let promises = [];
+// 💥💥💥 (ลบ) ฟังก์ชัน `updateAllAffectedDevicesSummary` เดิมถูกลบออกไป 💥💥💥
 
-    // ดึงข้อมูลและสร้าง Batch Update ในขั้นตอนเดียว
-    for (const device of deviceNames) {
-        promises.push(new Promise(async (resolve, reject) => {
-            try {
-                // 1. ดึงข้อมูลทั้งหมดของอุปกรณ์นี้
-                // 💡 การเรียก getDeviceRecords จะดึง records ออกมา แต่ไม่ได้เรียงลำดับ Array ที่ถูก arrayUnion
-                
-                // ต้องดึงเอกสารเต็มมา
-                const docRef = getSiteCollection(currentSiteKey).doc(device);
-                const snap = await docRef.get();
-                const records = snap.exists ? (snap.data().records || []) : [];
-                
-                // 2. คำนวณ downCount และ currentStatus ใหม่
-                // ✅ FIX: เรียงลำดับ Array ก่อนการบันทึกกลับ
-                records.sort((a, b) => a.ts - b.ts);
-                
-                const latestRecord = records[records.length - 1];
-                const downCount = records.filter(r => r.counted).length; 
-                const currentStatus = latestRecord ? latestRecord.status : 'ok';
-                
-                // 3. เตรียมการอัปเดต: บันทึก Records ที่ถูกเรียงลำดับแล้ว
-                // เปลี่ยนจาก batch.update เป็น batch.set(..., { merge: true }) 
-                // เพื่อให้มั่นใจว่า Records Array ถูกแทนที่ด้วย Array ที่เรียงลำดับแล้ว
-                batch.set(docRef, {
-                    records, // ✅ FIX: บันทึก Records ที่ถูกเรียงลำดับแล้วกลับเข้าไป
-                    downCount,
-                    currentStatus
-                }, { merge: true });
-                resolve();
-            } catch (e) {
-                reject(e);
-            }
-        }));
-    }
-    try {
-        await Promise.all(promises);
-        await batch.commit();
-        
-        window.updateDeviceSummary();
-        window.updateDeviceStatusOverlays(currentSiteKey);
-    } catch (e) {
-        console.error("Error updating summaries post-import:", e);
-        // 💥 MODIFIED: เปิดใช้งาน SweetAlert2 💥
-        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถอัปเดตข้อมูลสรุปของอุปกรณ์หลังนำเข้าได้: ' + e.message, 'error');
-    }
-};
 
 function updateChart(summary) {
     const sorted = [...summary].sort((a, b) => b.count - a.count);
@@ -1150,7 +1100,123 @@ function setupRealtimeListener(siteKey) {
     });
 }
 
-// 💥💥💥 FUNCTION `importData` (แก้ไขทั้งหมด) 💥💥💥
+// 💥💥💥 (ใหม่) ฟังก์ชันประมวลผลการนำเข้า 💥💥💥
+/**
+ * ประมวลผลและผสานข้อมูล (Merge) ที่นำเข้าจาก Excel
+ * @param {Array} assetsToImport - อาร์เรย์ของ {deviceName, assetInfo}
+ * @param {Array} recordsToImport - อาร์เรย์ของ {deviceName, record}
+ */
+async function processAndSaveImport(assetsToImport, recordsToImport) {
+    Swal.fire({
+        title: 'กำลังนำเข้า...',
+        text: 'กำลังประมวลผลและบันทึกข้อมูล กรุณารอสักครู่...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    const batch = db.batch();
+    
+    // 1. จัดกลุ่มข้อมูลที่นำเข้าตาม deviceName
+    const assetMap = new Map();
+    for (const item of assetsToImport) {
+        assetMap.set(item.deviceName, item.assetInfo);
+    }
+    
+    const recordMap = new Map(); // Map<string, Record[]>
+    for (const item of recordsToImport) {
+        if (!recordMap.has(item.deviceName)) {
+            recordMap.set(item.deviceName, []);
+        }
+        recordMap.get(item.deviceName).push(item.record);
+    }
+
+    // รวบรวม deviceName ทั้งหมด (ทั้งจาก excel และจาก config)
+    const allDeviceNames = new Set([
+        ...assetMap.keys(), 
+        ...recordMap.keys(), 
+        ...sites[currentSiteKey].devices // รวมอุปกรณ์ที่มีอยู่เดิมด้วย
+    ]);
+
+    try {
+        // 2. ดึงข้อมูลเอกสาร *ทั้งหมด* ที่มีอยู่
+        const docsSnap = await getAllDevicesDocs(currentSiteKey);
+        const existingDataMap = new Map();
+        docsSnap.forEach(d => existingDataMap.set(d.id, d.data()));
+
+        // 3. วนลูป, ผสานข้อมูล, และเตรียม batch
+        for (const deviceName of allDeviceNames) {
+            
+            // ข้ามถ้า deviceName นี้ไม่มีใน config ของ site ปัจจุบัน
+            if (!sites[currentSiteKey].devices.includes(deviceName)) {
+                continue;
+            }
+
+            const docRef = getSiteCollection(currentSiteKey).doc(deviceName);
+            
+            // ดึงข้อมูลเดิม (ถ้ามี)
+            const existingData = existingDataMap.get(deviceName) || {};
+            
+            // A. ประมวลผล Asset Info (ข้อมูลใหม่ทับเก่า)
+            let finalAssetInfo = existingData.assetInfo || {};
+            if (assetMap.has(deviceName)) {
+                finalAssetInfo = assetMap.get(deviceName); // ข้อมูลใหม่ (Import) ทับของเดิม
+            }
+
+            // B. ประมวลผล Records (ผสานและลบข้อมูลซ้ำ)
+            const existingRecords = existingData.records || [];
+            const importedRecords = recordMap.get(deviceName) || [];
+            
+            // ใช้ Map เพื่อลบข้อมูลซ้ำ (De-duplicate) โดยใช้ 'ts'
+            const finalRecordsMap = new Map();
+            // 1. ใส่ของเดิมเข้าไปก่อน
+            for (const r of existingRecords) {
+                finalRecordsMap.set(r.ts, r);
+            }
+            // 2. ใส่ของใหม่ (Import) ทับ (ถ้า ts ซ้ำ ของใหม่จะทับของเก่า)
+            for (const r of importedRecords) {
+                finalRecordsMap.set(r.ts, r);
+            }
+            
+            const finalRecords = Array.from(finalRecordsMap.values());
+
+            // C. คำนวณค่าสรุปใหม่
+            finalRecords.sort((a, b) => a.ts - b.ts); // เรียงจากเก่าไปใหม่
+            
+            const latestRecord = finalRecords.length > 0 ? finalRecords[finalRecords.length - 1] : null;
+            const downCount = finalRecords.filter(r => r.counted).length; // นับจาก `counted: true`
+            const currentStatus = latestRecord ? latestRecord.status : 'ok';
+            
+            // D. เพิ่มเข้า Batch (เป็นการ Set ทับทั้งเอกสาร)
+            batch.set(docRef, {
+                assetInfo: finalAssetInfo,
+                records: finalRecords,
+                downCount: downCount,
+                currentStatus: currentStatus
+            }); // ไม่ต้องใช้ { merge: true } เพราะเราสร้าง object สมบูรณ์แล้ว
+        }
+        
+        // 4. Commit
+        await batch.commit();
+
+        // 5. อัปเดต UI
+        window.updateDeviceSummary();
+        window.updateDeviceStatusOverlays(currentSiteKey);
+
+        Swal.fire({
+            title: 'นำเข้าสำเร็จ!',
+            text: `ประมวลผลข้อมูล ${allDeviceNames.size} อุปกรณ์เรียบร้อย`,
+            icon: 'success',
+            confirmButtonText: 'ตกลง'
+        });
+
+    } catch (error) {
+        console.error("Error processing import batch: ", error);
+        Swal.fire('ผิดพลาด', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + error.message, 'error');
+    }
+}
+
+
+// 💥💥💥 FUNCTION `importData` (แก้ไขตรรกะใหม่) 💥💥💥
 window.importData = function(event) {
     if (!currentUser) {
         Swal.fire('ไม่ได้รับอนุญาต', 'กรุณาลงชื่อเข้าใช้ก่อนนำเข้าข้อมูล', 'warning');
@@ -1179,12 +1245,10 @@ window.importData = function(event) {
                 return;
             }
 
-            const batch = db.batch();
-            let totalAssets = 0;
-            let totalRecords = 0;
-            const devicesToUpdateSummary = {}; 
+            const assetsToImport = []; // อาร์เรย์ของ {deviceName, assetInfo}
+            const recordsToImport = []; // อาร์เรย์ของ {deviceName, record}
 
-            // --- 1. 💥 ประมวลผลชีต "ข้อมูลทรัพย์สิน" 💥 ---
+            // --- 1. 💥 ประมวลผลชีต "ข้อมูลทรัพย์สิน" (ยังไม่บันทึก) 💥 ---
             if (wsAssets) {
                 const assetRawData = XLSX.utils.sheet_to_json(wsAssets, { header: 1 });
                 if (assetRawData.length >= 2) { 
@@ -1209,7 +1273,6 @@ window.importData = function(event) {
                         const deviceName = row[headerMap['ชื่ออุปกรณ์']];
                         if (!deviceName) continue;
 
-                        // 💥 FIX: อ่านวันที่ (ที่อาจจะเป็น /) แล้วแปลงกลับเป็น - 💥
                         const rawWarrantyStart = (row[headerMap['วันที่เริ่มประกัน']] || '').toString().slice(0, 10);
                         const rawWarrantyEnd = (row[headerMap['วันที่หมดประกัน']] || '').toString().slice(0, 10);
 
@@ -1217,26 +1280,21 @@ window.importData = function(event) {
                             serial: row[headerMap['Serial Number']] || '',
                             model: row[headerMap['Model']] || '',
                             manufacturer: row[headerMap['Manufacturer']] || '',
-                            warrantyStart: rawWarrantyStart.replace(/\//g, '-') || null, // แปลง / เป็น -
-                            warrantyEnd: rawWarrantyEnd.replace(/\//g, '-') || null,     // แปลง / เป็น -
+                            warrantyStart: rawWarrantyStart.replace(/\//g, '-') || null,
+                            warrantyEnd: rawWarrantyEnd.replace(/\//g, '-') || null,
                         };
-
-                        const docRef = getSiteCollection(currentSiteKey).doc(deviceName);
-                        batch.set(docRef, { assetInfo: assetInfo }, { merge: true }); 
-                        totalAssets++;
+                        assetsToImport.push({ deviceName, assetInfo });
                     }
                 }
             }
 
-            // --- 2. 💥 ประมวลผลชีต "ประวัติการชำรุด" 💥 ---
-            const recordsToSave = {}; 
-            
+            // --- 2. 💥 ประมวลผลชีต "ประวัติการชำรุด" (ยังไม่บันทึก) 💥 ---
             if (wsRecords) {
                 const recordRawData = XLSX.utils.sheet_to_json(wsRecords, { header: 1 });
                 if (recordRawData.length >= 2) { 
                     const headers = recordRawData[0];
                     const headerMap = {
-                        'Timestamp': headers.indexOf('Timestamp'), // 👈 💥 FIX 2.2: เพิ่ม Timestamp
+                        'Timestamp': headers.indexOf('Timestamp'),
                         'ชื่ออุปกรณ์': headers.indexOf('ชื่ออุปกรณ์'),
                         'วันที่ชำรุด': headers.indexOf('วันที่ชำรุด'),
                         'วันที่ซ่อมแซม': headers.indexOf('วันที่ซ่อมแซม'),
@@ -1256,77 +1314,42 @@ window.importData = function(event) {
                         const row = recordRawData[i];
                         const deviceName = row[headerMap['ชื่ออุปกรณ์']];
                         if (!deviceName) continue;
-                        
-                        devicesToUpdateSummary[deviceName] = true; 
 
                         const statusValue = (row[headerMap['สถานะ']] || '').toString();
-                        
-                        // 💥 FIX: อ่านวันที่ (ที่อาจจะเป็น /) แล้วแปลงกลับเป็น - 💥
                         const rawBrokenDate = (row[headerMap['วันที่ชำรุด']] || '').toString().slice(0, 10);
                         const rawFixedDate = (row[headerMap['วันที่ซ่อมแซม']] || '').toString().slice(0, 10);
-
-                        const importedBrokenDate = rawBrokenDate.replace(/\//g, '-'); // แปลง / เป็น -
-                        const importedFixedDate = rawFixedDate.replace(/\//g, '-');  // แปลง / เป็น -
-
+                        const importedBrokenDate = rawBrokenDate.replace(/\//g, '-');
+                        const importedFixedDate = rawFixedDate.replace(/\//g, '-');
                         const fixedDateValue = importedFixedDate.length > 0 ? importedFixedDate : null;
-
-                        // 💥 FIX 2.2: ตรรกะ Timestamp และ Counted 💥
                         const importedTs = row[headerMap['Timestamp']];
                         const finalStatus = statusValue.includes('ชำรุด') ? 'down' : 'ok';
                         
                         const record = {
-                            ts: importedTs ? parseInt(importedTs) : Date.now() + i, // 👈 ใช้ TS ที่นำเข้า (ถ้ามี)
+                            ts: importedTs ? parseInt(importedTs) : Date.now() + i,
                             brokenDate: importedBrokenDate,
                             fixedDate: fixedDateValue,
                             status: finalStatus, 
                             description: (row[headerMap['คำอธิบาย']] || '').toString() || 'นำเข้าจาก Excel',
-                            user: (row[headerMap['ผู้บันทึก']] || '').toString() || currentUser.email, // 👈 💥 FIX 1.2: ใช้ email
-                            counted: !!importedBrokenDate, // 👈 💥💥💥 FIX 1: แก้ตรรกะ counted 💥💥💥
+                            user: (row[headerMap['ผู้บันทึก']] || '').toString() || currentUser.email,
+                            counted: !!importedBrokenDate, // 👈 (FIX 1) ตรรกะ counted ที่ถูกต้อง
                         };
                         
                         if (record.brokenDate && record.fixedDate === null) {
                             record.status = 'down';
                         }
-                        if (!recordsToSave[deviceName]) { recordsToSave[deviceName] = []; }
-                        recordsToSave[deviceName].push(record);
-                        totalRecords++;
+                        
+                        recordsToImport.push({ deviceName, record });
                     }
                 }
             }
 
-            // --- 3. 💥 เพิ่ม Records (arrayUnion) ลงใน Batch 💥 ---
-            Object.keys(recordsToSave).forEach(deviceName => {
-                const deviceRef = getSiteCollection(currentSiteKey).doc(deviceName);
-                const newRecords = recordsToSave[deviceName];
-                batch.set(
-                    deviceRef,
-                    { records: firebase.firestore.FieldValue.arrayUnion(...newRecords) },
-                    { merge: true } 
-                );
-            });
-
-            // --- 4. 💥 Commit Batch 💥 ---
-            if (totalAssets > 0 || totalRecords > 0) {
-                batch.commit().then(() => {
-                    if (totalRecords > 0) {
-                        window.updateAllAffectedDevicesSummary(Object.keys(devicesToUpdateSummary)); 
-                    }
-                    
-                    window.updateDeviceSummary(); 
-
-                    Swal.fire({
-                        title: 'นำเข้าสำเร็จ!',
-                        text: `นำเข้าข้อมูลทรัพย์สิน ${totalAssets} รายการ และข้อมูลประวัติ ${totalRecords} รายการ`,
-                        icon: 'success',
-                        confirmButtonText: 'ตกลง'
-                    });
-                }).catch(error => {
-                    console.error("Error writing batch: ", error);
-                    Swal.fire('ผิดพลาด', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + error.message, 'error');
-                });
+            // --- 3. 💥 เรียกฟังก์ชันประมวลผล 💥 ---
+            if (assetsToImport.length > 0 || recordsToImport.length > 0) {
+                processAndSaveImport(assetsToImport, recordsToImport);
             } else {
-                Swal.fire('ผิดพลาด', 'ไม่พบรายการบันทึกที่ถูกต้องในชีตใดๆ', 'error');
+                Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลที่ถูกต้องในชีตใดๆ', 'error');
             }
+
         } catch (error) {
             console.error("Import Error: ", error);
             Swal.fire('ผิดพลาด', 'เกิดข้อผิดพลาดในการอ่านไฟล์: ' + error.message, 'error');
@@ -1616,6 +1639,3 @@ window.onload = function() {
     try { imageMapResize(); } catch (e) {}
     
 };
-
-
-
