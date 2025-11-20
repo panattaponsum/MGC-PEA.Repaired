@@ -406,16 +406,6 @@ if (editIndex < 0) {
 const latestRecord = records.length > 0 ? records[records.length - 1] : null;
 const currentStatus = latestRecord ? latestRecord.status : 'ok'; // สถานะปัจจุบัน
 
-// 🚨 FINAL RULE: ถ้าอุปกรณ์ชำรุดอยู่ (currentStatus === 'down') ห้ามบันทึกรายการใหม่ใดๆ
-if (currentStatus === 'down') {
-Swal.fire({
-title: 'ไม่สามารถเพิ่มรายการใหม่ได้',
-text: `อุปกรณ์ "${currentDevice}" ยังอยู่ในสถานะ "ชำรุด" (รายการล่าสุดยังไม่ถูกปิด). กรุณาใช้ปุ่ม "✏️ แก้ไข" เพื่อทำการปิดรายการชำรุดปัจจุบัน โดยเปลี่ยนสถานะเป็น "ใช้งานได้" พร้อมระบุวันที่ซ่อมแซม`,
-icon: 'error'
-});
-return false;
-}
-
 // 🚨 (Optional but Good Practice) ถ้าอุปกรณ์ใช้งานได้อยู่แล้ว ห้ามบันทึกรายการ 'ok' ที่มีวันที่ซ่อม
 if (currentStatus === 'ok' && statusVal === 'ok' && (brokenDate || fixedDate)) {
 Swal.fire({
@@ -672,18 +662,13 @@ let records = await getDeviceRecords(currentSiteKey, currentDevice);
 
 const idx = records.findIndex(r => String(r.ts) === String(ts));
 if (idx < 0) return;
-if (idx !== records.length - 1) {
-Swal.fire({
-title: 'ไม่สามารถแก้ไขได้',
-text: 'สามารถแก้ไขได้เฉพาะรายการบันทึกที่ใหม่ที่สุดเท่านั้น เพื่อป้องกันความสับสนของประวัติการชำรุด/ซ่อมแซม',
-icon: 'warning'
-});
+
 return; // ยกเลิกการแก้ไข
 }
 const r = records[idx];
 // 💡 ไม่ต้องตั้ง userName เพราะมันถูกล็อคโดย auth state อยู่แล้ว
 // document.getElementById('userName').value = r.user || ''; 
-document.getElementById('status').value = r.status || 'ok';
+document.getElementById('status').value = r.status || 'down';
 document.getElementById('brokenDate').value = r.brokenDate || '';
 document.getElementById('fixedDate').value = r.fixedDate || '';
 document.getElementById('description').value = r.description || '';
@@ -691,13 +676,6 @@ editIndex = idx;
 document.getElementById('editHint').classList.remove('hidden');
 };
 
-// =========================================================================
-// 💥 NEW: Asset Modal Functions
-// =========================================================================
-
-/**
-* เปิด Modal ข้อมูลทรัพย์สิน
-*/
 window.openAssetModal = async function() {
 if (!currentDevice) return;
 
@@ -709,10 +687,6 @@ document.getElementById('assetModal').style.display = 'flex'; // แสดง Mo
 await loadAssetData();
 }
 
-/**
-* ปิด Modal ข้อมูลทรัพย์สิน
-* @param {boolean} [showMainModal=true] กลับไปแสดง Modal หลักหรือไม่
-*/
 window.closeAssetModal = function(showMainModal = true) {
 document.getElementById('assetModal').style.display = 'none';
 if (showMainModal && currentDevice) {
@@ -723,9 +697,6 @@ closeForm();
 }
 }
 
-/**
-* โหลดข้อมูลทรัพย์สินมาใส่ในฟอร์ม
-*/
 async function loadAssetData() {
 const docRef = getSiteCollection(currentSiteKey).doc(currentDevice);
 const snap = await docRef.get();
@@ -1675,6 +1646,7 @@ window.onload = function() {
 try { imageMapResize(); } catch (e) {}
 
 };
+
 
 
 
