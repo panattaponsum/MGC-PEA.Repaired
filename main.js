@@ -879,7 +879,7 @@ if (remainingDownCount > 0) {
 
     // คำนวณระยะเวลาชำรุด (ของรายการที่เก่าที่สุดที่ยังชำรุดอยู่)
     latestBrokenDays = calculateDaysDifference(earliestBrokenDate, null); // null = วันที่ปัจจุบัน
-    latestBrokenDuration = formatDuration(latestBrokenDays) + ' (ค้าง)';
+    latestBrokenDuration = formatDuration(latestBrokenDays) + ' (ยังไม่ได้แก้ไข)';
     currentStatusDisplay = '❎ ชำรุด';
     
 } else if (latestRecord && latestRecord.brokenDate) {
@@ -969,7 +969,8 @@ const tr = document.createElement('tr');
 tr.className = 'border-t border-white/10 hover:bg-white/5 cursor-pointer'; 
 tr.innerHTML = `
                <td class="text-left font-medium">${escapeHtml(s.device)}</td>
-               <td><span class="${s.count > 0 ? 'tag tag-bad' : 'tag tag-ok'}">${s.count} / ${s.remaining}</span></td> <td>${s.brokenDate}</td>
+               <td><span class="${s.count > 0 ? 'tag tag-bad' : 'tag tag-ok'}">${s.count} / ${s.remaining}</span></td> 
+			   <td>${s.brokenDate}</td>
                <td>${s.fixedDate}</td>
                <td><span class="${s.status.includes('ชำรุด') ? 'tag tag-bad' : 'tag tag-ok'}">${s.status}</span></td>
                <td class="font-semibold text-center">${s.latestBrokenDuration}</td>
@@ -1668,4 +1669,5 @@ window.onload = function() {
 try { imageMapResize(); } catch (e) {}
 
 };
+
 
