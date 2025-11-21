@@ -595,7 +595,7 @@ div.innerHTML = `
            <div class="flex justify-between items-start border-b border-gray-700 pb-2 mb-2">
                <div class="text-lg font-bold text-white">
                    <span class="tag ${statusClass}">${statusText}</span>
-					<span class="ml-2 text-base text-gray-300">| บันทึกครั้งที่ ${recordSequence}</span>
+					<span class="ml-2 text-base text-gray-300">|ครั้งที่ ${recordSequence}</span>
                </div>
                <div class="text-sm text-gray-400">
                    บันทึกโดย: <span class="font-semibold text-white">${escapeHtml(r.user || 'ไม่ระบุ')}</span>
@@ -1668,3 +1668,4 @@ window.onload = function() {
 try { imageMapResize(); } catch (e) {}
 
 };
+
