@@ -719,67 +719,111 @@ closeForm();
 }
 
 async function loadAssetData() {
-const docRef = getSiteCollection(currentSiteKey).doc(currentDevice);
-const snap = await docRef.get();
-let assetInfo = {};
-if (snap.exists && snap.data().assetInfo) {
-assetInfo = snap.data().assetInfo;
+    const docRef = getSiteCollection(currentSiteKey).doc(currentDevice);
+    const snap = await docRef.get();
+    let assetInfo = {};
+    if (snap.exists && snap.data().assetInfo) {
+        assetInfo = snap.data().assetInfo;
+    }
+
+    // กำหนด ID ของช่อง Input ทั้งหมดในฟอร์มทรัพย์สิน
+    const inputIds = [
+        'assetSerial', 
+        'assetModel', 
+        'assetManufacturer', 
+        'assetWarrantyStart', 
+        'assetWarrantyEnd'
+    ];
+
+    // 💥 NEW: ตรวจสอบว่าเป็น Admin หรือไม่?
+    // ถ้าไม่มี currentUser หรืออีเมลไม่ตรง ให้ถือว่าไม่ใช่ Admin
+    const isAdmin = currentUser && currentUser.email === 'panattapon.sum@gmail.com';
+
+    // วนลูปเพื่อล็อค/ปลดล็อค ช่องข้อมูล
+    inputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.disabled = !isAdmin; // ถ้าไม่ใช่ Admin ให้ disable
+            // เพิ่มสไตล์เพื่อให้รู้ว่ากรอกไม่ได้ (Optional)
+            if (!isAdmin) {
+                el.classList.add('bg-gray-700', 'text-gray-400', 'cursor-not-allowed');
+            } else {
+                el.classList.remove('bg-gray-700', 'text-gray-400', 'cursor-not-allowed');
+            }
+        }
+    });
+
+    // 💥 NEW: ซ่อน/แสดง ปุ่มบันทึกข้อมูลทรัพย์สิน
+    const saveBtn = document.getElementById('saveAssetButton'); 
+    if (saveBtn) {
+        saveBtn.style.display = isAdmin ? 'inline-block' : 'none';
+    }
+
+    // --- ส่วนการกำหนดค่าลงในฟอร์ม (เหมือนเดิม) ---
+    document.getElementById('assetSerial').value = assetInfo.serial || '';
+    document.getElementById('assetModel').value = assetInfo.model || '';
+    document.getElementById('assetManufacturer').value = assetInfo.manufacturer || '';
+    document.getElementById('assetWarrantyStart').value = assetInfo.warrantyStart || '';
+    document.getElementById('assetWarrantyEnd').value = assetInfo.warrantyEnd || '';
+
+    // คำนวณปี (ถ้ามี)
+    if (assetInfo.warrantyStart && assetInfo.warrantyEnd) {
+        const start = new Date(assetInfo.warrantyStart);
+        const end = new Date(assetInfo.warrantyEnd);
+        const diffYears = (end - start) / (1000 * 60 * 60 * 24 * 365.25);
+        document.getElementById('assetWarrantyYears').value = Math.round(diffYears * 10) / 10; 
+    } else {
+        document.getElementById('assetWarrantyYears').value = '';
+    }
+
+    // อัปเดตสถานะที่แสดงในฟอร์ม
+    updateAssetWarrantyStatusField();
 }
 
-document.getElementById('assetSerial').value = assetInfo.serial || '';
-document.getElementById('assetModel').value = assetInfo.model || '';
-document.getElementById('assetManufacturer').value = assetInfo.manufacturer || '';
-document.getElementById('assetWarrantyStart').value = assetInfo.warrantyStart || '';
-document.getElementById('assetWarrantyEnd').value = assetInfo.warrantyEnd || '';
-
-// คำนวณปี (ถ้ามี)
-if (assetInfo.warrantyStart && assetInfo.warrantyEnd) {
-const start = new Date(assetInfo.warrantyStart);
-const end = new Date(assetInfo.warrantyEnd);
-const diffYears = (end - start) / (1000 * 60 * 60 * 24 * 365.25);
-document.getElementById('assetWarrantyYears').value = Math.round(diffYears * 10) / 10; // ทศนิยม 1 ตำแหน่ง
-} else {
-document.getElementById('assetWarrantyYears').value = '';
-}
-
-// อัปเดตสถานะที่แสดงในฟอร์ม
-updateAssetWarrantyStatusField();
-}
-
-/**
-* บันทึกข้อมูลทรัพย์สิน
-*/
 window.saveAssetData = async function() {
-if (!currentUser) {
-Swal.fire('ไม่ได้รับอนุญาต', 'กรุณาลงชื่อเข้าใช้ก่อนบันทึกข้อมูล', 'warning');
-return;
-}
-if (!currentDevice) return;
+    // ตรวจสอบการล็อคอิน
+    if (!currentUser) {
+        Swal.fire('ไม่ได้รับอนุญาต', 'กรุณาลงชื่อเข้าใช้ก่อนบันทึกข้อมูล', 'warning');
+        return;
+    }
 
-const assetInfo = {
-serial: document.getElementById('assetSerial').value,
-model: document.getElementById('assetModel').value,
-manufacturer: document.getElementById('assetManufacturer').value,
-warrantyStart: document.getElementById('assetWarrantyStart').value,
-warrantyEnd: document.getElementById('assetWarrantyEnd').value,
-};
+    // 💥 NEW: ตรวจสอบอีเมลอนุญาต (Hard-coded Security Check) 💥
+    const allowedEmail = 'panattapon.sum@gmail.com';
+    if (currentUser.email !== allowedEmail) {
+        Swal.fire({
+            icon: 'error',
+            title: 'ไม่มีสิทธิ์เข้าถึง',
+            text: `เฉพาะบัญชี Admin เท่านั้น ที่ได้รับอนุญาตให้แก้ไขข้อมูลทรัพย์สิน`
+        });
+        return; // หยุดการทำงานทันที
+    }
 
-const docRef = getSiteCollection(currentSiteKey).doc(currentDevice);
+    if (!currentDevice) return;
 
-try {
-await docRef.set({ assetInfo }, { merge: true }); // 💡 ใช้ merge: true เพื่อไม่ให้ทับ records
-Swal.fire('บันทึกสำเร็จ', 'ข้อมูลทรัพย์สินถูกบันทึกแล้ว', 'success');
+    const assetInfo = {
+        serial: document.getElementById('assetSerial').value,
+        model: document.getElementById('assetModel').value,
+        manufacturer: document.getElementById('assetManufacturer').value,
+        warrantyStart: document.getElementById('assetWarrantyStart').value,
+        warrantyEnd: document.getElementById('assetWarrantyEnd').value,
+    };
 
-// อัปเดตหน้าจอหลัก (formModal)
-updateAssetDisplays(assetInfo);
-// อัปเดตตารางสรุป
-window.updateDeviceSummary();
+    const docRef = getSiteCollection(currentSiteKey).doc(currentDevice);
 
-closeAssetModal(true); // ปิดและกลับไปหน้าหลัก
-} catch (e) {
-console.error("Error saving asset data:", e);
-Swal.fire('ผิดพลาด', 'ไม่สามารถบันทึกข้อมูลทรัพย์สินได้: ' + e.message, 'error');
-}
+    try {
+        await docRef.set({ assetInfo }, { merge: true }); 
+        Swal.fire('บันทึกสำเร็จ', 'ข้อมูลทรัพย์สินถูกบันทึกแล้ว', 'success');
+
+        // อัปเดตหน้าจอหลัก (formModal)
+        updateAssetDisplays(assetInfo);
+        // อัปเดตตารางสรุป
+        window.updateDeviceSummary();
+
+        closeAssetModal(true); 
+    } catch (e) {
+        console.error("Error saving asset data:", e);
+        Swal.fire('ผิดพลาด', 'ไม่สามารถบันทึกข้อมูลทรัพย์สินได้: ' + e.message, 'error');
+    }
 }
 
 function updateAssetWarrantyStatusField() {
@@ -1687,6 +1731,7 @@ window.onload = function() {
 try { imageMapResize(); } catch (e) {}
 
 };
+
 
 
 
