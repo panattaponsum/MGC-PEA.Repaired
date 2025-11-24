@@ -882,6 +882,7 @@ endEl.addEventListener('change', calculateYears);
 endEl.addEventListener('change', updateAssetWarrantyStatusField);
 }
 
+// 💥💥💥 FUNCTION: updateDeviceSummary (ฉบับแก้ไข: แสดงวันที่และสถานะถูกต้อง) 💥💥💥
 window.updateDeviceSummary = async function() {
     const siteData = sites[currentSiteKey];
     if (!siteData) return;
@@ -903,25 +904,29 @@ window.updateDeviceSummary = async function() {
         const docData = dataMap[dev]; 
         const records = docData?.records || [];
         
-        // Find latest record by timestamp
-        let latestRecord = null;
+        // เรียงข้อมูลตามเวลา (เก่า -> ใหม่)
         if (records.length > 0) {
             records.sort((a, b) => a.ts - b.ts); 
-            latestRecord = records[records.length - 1]; 
         }
-
+        const latestRecord = records.length > 0 ? records[records.length - 1] : null;
         let downCount = docData?.downCount || 0; 
 
-        // 💥 NEW: คำนวณคงเหลือ (รายการที่ status='down' และไม่มี fixedDate)
-        const remainingDownRecords = records.filter(r => r.status === 'down' && !r.fixedDate);
+        // ✅ Helper: ฟังก์ชันเช็คว่า "ยังไม่ซ่อม" หรือไม่ (ใช้ Logic เดียวกับตอน Save)
+        const isUnresolved = (r) => {
+            if (r.status !== 'down') return false;
+            return !r.fixedDate || r.fixedDate === '' || r.fixedDate === '-' || r.fixedDate === 'null';
+        };
+
+        // 💥 NEW: คำนวณคงเหลือ (ใช้ Helper)
+        const remainingDownRecords = records.filter(r => isUnresolved(r));
         const remainingDownCount = remainingDownRecords.length;
 
         // --- Downtime Calculation & Display Logic ---
         let latestBrokenDuration = '-';
         let latestBrokenDays = 0;
         let earliestBrokenDate = '-';
-        let latestFixedDate = '-';
-        let currentStatusDisplay = 'ok';
+        let latestFixedDate = '-'; // ค่าเริ่มต้นคือยังไม่ซ่อม
+        let currentStatusDisplay = 'ok'; // ค่าเริ่มต้น
 
         // 💥 NEW LOGIC: ตรวจสอบว่ามีรายการค้างหรือไม่?
         if (remainingDownCount > 0) {
@@ -929,13 +934,12 @@ window.updateDeviceSummary = async function() {
             currentStatusDisplay = '❎ ชำรุด';
 
             // หา "วันที่ชำรุด" ที่เก่าที่สุด ของรายการที่ยังไม่ซ่อม
-            // เรียง remaining จากเก่าไปใหม่ (ts น้อย -> มาก)
-            remainingDownRecords.sort((a, b) => a.ts - b.ts);
-            const oldestIssue = remainingDownRecords[0]; // ตัวแรกคือตัวที่เก่าที่สุด
+            // (remainingDownRecords ถูกเรียงจาก เก่า->ใหม่ อยู่แล้ว เพราะ records หลักเรียงมาแล้ว)
+            const oldestIssue = remainingDownRecords[0]; 
 
             earliestBrokenDate = oldestIssue.brokenDate || '-';
             
-            // วันที่ซ่อมแซม: บังคับเป็น '-' จนกว่าจะซ่อมครบทุกรายการ
+            // วันที่ซ่อมแซม: บังคับเป็น '-' เพราะยังซ่อมไม่หมด
             latestFixedDate = '-'; 
 
             // คำนวณระยะเวลาจากตัวที่เก่าที่สุดถึงปัจจุบัน
@@ -943,23 +947,22 @@ window.updateDeviceSummary = async function() {
             latestBrokenDuration = formatDuration(latestBrokenDays) + ' (ยังไม่ได้แก้ไข)';
 
         } else {
-            // กรณี 2: ซ่อมครบหมดแล้ว (ใช้งานได้)
-            currentStatusDisplay = '✅ ใช้งานได้'; // หรือจะใช้ 'ok' ตามเดิมก็ได้ แต่คุณอยากให้แปลงเป็นคำพูด
+            // กรณี 2: ซ่อมครบหมดแล้ว หรือไม่มีรายการชำรุดเลย
+            currentStatusDisplay = '✅ ใช้งานได้'; 
 
             if (latestRecord && latestRecord.brokenDate) {
-                 // แสดงประวัติล่าสุดที่จบไปแล้ว
+                 // แสดงประวัติจากรายการล่าสุด (ที่จบไปแล้ว)
                  earliestBrokenDate = latestRecord.brokenDate;
-                 latestFixedDate = latestRecord.fixedDate || '-'; // ควรจะมีวันที่ซ่อม
+                 latestFixedDate = latestRecord.fixedDate || '-'; 
 
-                 if (latestRecord.fixedDate) {
+                 if (latestRecord.fixedDate && latestRecord.fixedDate !== '-') {
                       latestBrokenDays = calculateDaysDifference(latestRecord.brokenDate, latestRecord.fixedDate);
                       latestBrokenDuration = formatDuration(latestBrokenDays);
                  }
             }
         }
         
-        // --- การกรองข้อมูล (Filter) ---
-        // ใช้ earliestBrokenDate ในการกรองช่วงเวลา ถ้ามันมีค่า
+        // --- การกรองข้อมูล (Filter Logic) ---
         let dateFilterSource = earliestBrokenDate !== '-' ? earliestBrokenDate : (latestRecord?.brokenDate);
 
         if (dateFilterSource && dateFilterSource !== '-') {
@@ -974,7 +977,6 @@ window.updateDeviceSummary = async function() {
             }
         }        
 
-        // Filter Status
         if (filterStatus === 'currently-down' && remainingDownCount === 0) continue; 
         if (filterStatus === 'down' && downCount === 0) continue; 
         if (filterStatus === 'clean' && downCount > 0) continue; 
@@ -983,9 +985,9 @@ window.updateDeviceSummary = async function() {
         summary.push({
             device: dev,
             count: downCount,
-            remaining: remainingDownCount, // แสดงจำนวนคงเหลือ
-            brokenDate: earliestBrokenDate, // วันที่ชำรุด (เก่าสุดที่ค้างอยู่)
-            fixedDate: latestFixedDate, // วันที่ซ่อม (จะเป็น - ถ้ายังมีคงเหลือ)
+            remaining: remainingDownCount, // แสดงจำนวนคงเหลือที่คำนวณใหม่
+            brokenDate: earliestBrokenDate,
+            fixedDate: latestFixedDate,
             status: currentStatusDisplay,
             latestDescription: latestRecord?.description || '-',
             latestBrokenDuration: latestBrokenDuration,
@@ -997,6 +999,7 @@ window.updateDeviceSummary = async function() {
     summary.sort((a, b) => {
         const countSort = sortOrder === 'desc' ? b.count - a.count : a.count - b.count;
         if (countSort !== 0) return countSort;
+        // เรียงตามระยะเวลาที่เสีย (มาก -> น้อย)
         return b.latestBrokenDays - a.latestBrokenDays; 
     });
 
@@ -1165,7 +1168,7 @@ Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเช�
 });
 }
 
-// 💥💥💥 FUNCTION: processAndSaveImport 💥💥💥
+// 💥💥💥 FUNCTION: processAndSaveImport (ฉบับแก้ไข: ตรวจสอบรายการค้างแม่นยำขึ้น) 💥💥💥
 async function processAndSaveImport(assetsToImport, recordsToImport) {
     Swal.fire({
         title: 'กำลังนำเข้า...',
@@ -1212,15 +1215,21 @@ async function processAndSaveImport(assetsToImport, recordsToImport) {
 
             const downCount = finalRecords.filter(r => r.counted).length; 
             
-            // 💥 FIXED Logic: เช็คว่ายังซ่อมไม่เสร็จหรือไม่ (fixedDate เป็น null, undefined, หรือค่าว่าง)
-            const remainingDownRecords = finalRecords.filter(r => 
-                r.status === 'down' && (!r.fixedDate || r.fixedDate === '')
-            );
+            // ✅ Helper: ฟังก์ชันเช็คว่า "ยังไม่ซ่อม" หรือไม่ (รวมทุกเงื่อนไข)
+            const isUnresolved = (r) => {
+                if (r.status !== 'down') return false; // ต้องสถานะ down ก่อน
+                // ถ้าไม่มีวันที่ซ่อม หรือ วันที่ซ่อมเป็นค่าว่าง/- ให้ถือว่ายังไม่ซ่อม
+                return !r.fixedDate || r.fixedDate === '' || r.fixedDate === '-' || r.fixedDate === 'null';
+            };
+
+            // 💥 FIXED Logic: ใช้ Helper ในการกรอง
+            const remainingDownRecords = finalRecords.filter(r => isUnresolved(r));
             
             let currentStatus = 'ok';
             if (remainingDownRecords.length > 0) {
                 currentStatus = 'down'; // ถ้ามีค้าง ให้สถานะเป็น down เสมอ
             } else {
+                // ถ้าไม่มีค้าง ให้ดูรายการล่าสุด
                 const latestRecord = finalRecords.length > 0 ? finalRecords[finalRecords.length - 1] : null;
                 currentStatus = latestRecord ? latestRecord.status : 'ok';
             }
@@ -1687,6 +1696,7 @@ window.onload = function() {
 try { imageMapResize(); } catch (e) {}
 
 };
+
 
 
 
