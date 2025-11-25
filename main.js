@@ -482,7 +482,7 @@ window.updateDeviceStatusOverlays(currentSiteKey);
 
 // 💥 NEW: ส่งไลน์ถ้าเป็นการแจ้งชำรุดใหม่
     if (statusVal === 'down' && editIndex < 0) {
-        sendLineNotify(
+        sendDiscordNotify(
             currentDevice, 
             document.getElementById('description').value, 
             document.getElementById('userName').value
@@ -1837,6 +1837,7 @@ window.onload = function() {
 try { imageMapResize(); } catch (e) {}
 	
 };
+
 
 
 
