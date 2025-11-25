@@ -486,6 +486,8 @@ window.updateDeviceStatusOverlays(currentSiteKey);
             currentDevice, 
             document.getElementById('description').value, 
             document.getElementById('userName').value
+			baseRec.description, // ✅ แก้ตรงนี้: ใช้ baseRec.description แทน document.getElementById...
+            baseRec.user         // ✅ แก้ตรงนี้: ใช้ baseRec.user แทนเพื่อความชัวร์
         );
     }
 
@@ -1815,8 +1817,9 @@ async function sendDiscordNotify(deviceName, description, user) {
 📍 **สถานที่:** ${sites[currentSiteKey].name}
 🛠️ **อุปกรณ์:** ${deviceName}
 📝 **อาการ:** ${description || '-'}
+🕒 **วันที่ชำรุด**${brokenDate}
 👤 **ผู้แจ้ง:** ${user}
-🕒 **เวลา:** ${new Date().toLocaleString('th-TH')}
+🕒 **เวลาบันทึก:** ${new Date().toLocaleString('th-TH')}
 ------------------------------------------
     `;
 
@@ -1837,6 +1840,7 @@ window.onload = function() {
 try { imageMapResize(); } catch (e) {}
 	
 };
+
 
 
 
